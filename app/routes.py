@@ -1,5 +1,5 @@
 import pandas as pd
-from flask import render_template, request
+from flask import render_template, request, jsonify
 from sklearn.externals import joblib
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import classification_report
@@ -29,19 +29,20 @@ def train():
     classifier.fit(X_train, y_train)
     classifier.score(X_test, y_test)
     y_pred = classifier.predict(X_test)
-    print(classification_report(y_test, y_pred))
+    report = classification_report(y_test, y_pred, output_dict=True)
+    print(report)
     mse = mean_squared_error(y_test, y_pred)
     print("MSE value: "+ str(mse))
     joblib.dump(classifier, 'SpamClassificationModel.pkl')
 
-    return "Model successfully trained."
-
-
-@app.route("/")
-@app.route("/index")
-def home():
-    return render_template('home.html')
-
+    return jsonify({"status": "Model successfully trained.", "classification_report": report, "mse": mse})
+#
+#
+# @app.route("/")
+# @app.route("/index")
+# def home():
+#     return render_template('home.html')
+#
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -53,8 +54,15 @@ def predict():
     vectorizer = CountVectorizer(ngram_range=(1, 1), min_df=1, vocabulary=vocabulary)
     vectorizer._validate_vocabulary()
 
-    message = request.form['message']
-    data = [message]
+    message = request.get_json( )
+    #message = request.form.get('message')
+    sms = message["message"]
+    data = [sms]
     transformed = vectorizer.transform(data).toarray()
     prediction = classifier.predict(transformed)
-    return render_template('result.html', prediction=prediction)
+    result=""
+    if prediction[0]==1:
+        result="SPAM"
+    else:
+        result="HAM"
+    return jsonify({"prediction": result})
